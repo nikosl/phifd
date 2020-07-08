@@ -61,15 +61,8 @@ pub struct PhiAccrualFailureDetector {
 pub struct PhiAccrualFailureDetectorBuilder(PhiAccrualFailureDetector);
 
 impl PhiAccrualFailureDetectorBuilder {
-
     pub fn new() -> Self {
-        let detector = PhiAccrualFailureDetector::new(
-            16.0,
-            200,
-            500.0,
-            0.0,
-            500,
-        );
+        let detector = PhiAccrualFailureDetector::new(16.0, 200, 500.0, 0.0, 500);
         PhiAccrualFailureDetectorBuilder(detector)
     }
 
@@ -78,7 +71,10 @@ impl PhiAccrualFailureDetectorBuilder {
         self
     }
 
-    pub fn with_sample_size(&mut self, sample_size: usize) -> &mut PhiAccrualFailureDetectorBuilder {
+    pub fn with_sample_size(
+        &mut self,
+        sample_size: usize,
+    ) -> &mut PhiAccrualFailureDetectorBuilder {
         self.0.sample_size = sample_size;
         self
     }
@@ -108,24 +104,30 @@ impl PhiAccrualFailureDetectorBuilder {
     }
 
     pub fn build(&mut self) -> PhiAccrualFailureDetector {
-        let mut detector = PhiAccrualFailureDetector{
+        let mut detector = PhiAccrualFailureDetector {
             history: HeartbeatHistory::new(self.0.sample_size),
             ..self.0
         };
         let std_deviation = detector.first_heartbeat_estimate / 4;
-        detector.history.add(detector.first_heartbeat_estimate - std_deviation);
-        detector.history.add(detector.first_heartbeat_estimate + std_deviation);
+        detector
+            .history
+            .add(detector.first_heartbeat_estimate - std_deviation);
+        detector
+            .history
+            .add(detector.first_heartbeat_estimate + std_deviation);
 
         detector
     }
 }
 
 impl PhiAccrualFailureDetector {
-    pub fn new(threshold: f64,
+    pub fn new(
+        threshold: f64,
         sample_size: usize,
         min_std_deviation: f64,
         acceptable_heartbeat_pause: f64,
-        first_heartbeat_estimate: u64) -> Self {
+        first_heartbeat_estimate: u64,
+    ) -> Self {
         PhiAccrualFailureDetector {
             threshold,
             sample_size,
@@ -211,7 +213,7 @@ mod tests {
     fn should_recover() {
         let mut detector = PhiAccrualFailureDetectorBuilder::new().build();
         let now = 1420070400000u64;
-    
+
         for t in 0..10 {
             let tm = now + t * 1000;
             detector.heartbeat(tm);
@@ -241,38 +243,30 @@ mod tests {
                 if i == 291 {
                     assert!(1.0 < phi && phi < 3.0);
                     assert!(detector.is_available(timestamp));
-                }
-                else if i == 292 {
+                } else if i == 292 {
                     assert!(3.0 < phi && phi < 8.0);
                     assert!(detector.is_available(timestamp));
-                }
-                else if i == 293 {
+                } else if i == 293 {
                     assert!(8.0 < phi && phi < 16.0);
                     assert!(detector.is_available(timestamp));
-                }
-                else if i == 294 {
+                } else if i == 294 {
                     assert!(16.0 < phi && phi < 30.0);
                     assert!(!detector.is_available(timestamp));
-                }
-                else if i == 295 {
+                } else if i == 295 {
                     assert!(30.0 < phi && phi < 50.0);
                     assert!(!detector.is_available(timestamp));
-                }
-                else if i == 296 {
+                } else if i == 296 {
                     assert!(50.0 < phi && phi < 70.0);
                     assert!(!detector.is_available(timestamp));
-                }
-                else if i == 297 {
+                } else if i == 297 {
                     assert!(70.0 < phi && phi < 100.0);
                     assert!(!detector.is_available(timestamp));
-                }
-                else {
+                } else {
                     assert!(100.0 < phi);
                     assert!(!detector.is_available(timestamp));
                 }
                 continue;
-            }
-            else if i > 200 {
+            } else if i > 200 {
                 if i % 5 == 0 {
                     let phi = detector.phi(timestamp);
                     assert!(0.1 < phi && phi < 0.5);
