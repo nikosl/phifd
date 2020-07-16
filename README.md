@@ -6,9 +6,11 @@ Implementation of [The Phi Accrual Failure Detector](https://pdfs.semanticschola
 
 requirements:
 
-* docker
-* docker-compose
-* jq
+* make
+* curl
+* [docker](https://docs.docker.com/engine/)
+* [docker-compose](https://docs.docker.com/compose/)
+* [jq](https://stedolan.github.io/jq/)
 * (optional) [websocat](https://github.com/vi/websocat)
 
 ``` bash
