@@ -1,15 +1,18 @@
 use actix::prelude::*;
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::time::Duration;
 use uuid::Uuid;
 
 use actix::io::SinkWrite;
 
 use futures::stream::SplitSink;
-use std::net::SocketAddr;
+use std::net::{SocketAddr, ToSocketAddrs};
 use tokio_util::udp::UdpFramed;
 
 use super::inventory::InventoryActor;
-use crate::messages::{HBCodec, HeartBeat, Monitor};
+use crate::{
+    messages::{HBCodec, HeartBeat, Monitor},
+    phi,
+};
 
 type SinkItem = (HeartBeat, SocketAddr);
 type UdpSink = SplitSink<UdpFramed<HBCodec>, SinkItem>;
@@ -39,7 +42,6 @@ impl Handler<HeartBeat> for UdpActor {
     fn handle(&mut self, msg: HeartBeat, _: &mut Context<Self>) {
         if let HeartBeat::DoPing(id, ts, addr) = msg {
             self.sink.write((HeartBeat::Ping(id, ts), addr)).unwrap();
-            println!("Received do ping: ({:?}, {:?}, {:?})", id, ts, addr);
         }
     }
 }
@@ -50,6 +52,11 @@ impl Handler<Monitor> for UdpActor {
     fn handle(&mut self, msg: Monitor, ctx: &mut Context<Self>) {
         match msg {
             Monitor::Register(ref peer) => {
+                println!("Register peer {:?}", peer);
+                if peer.id == self.me {
+                    return;
+                }
+
                 self.inventory.do_send(msg.clone());
                 let addr = HeartBeatActor::new(
                     peer.id,
@@ -61,6 +68,7 @@ impl Handler<Monitor> for UdpActor {
                 self.monitored.insert(peer.id, addr);
             }
             Monitor::UnRegister(ref uuid) => {
+                println!("Unregister peer {:?}", uuid);
                 self.monitored
                     .remove(uuid)
                     .and_then::<Addr<HeartBeatActor>, _>(|addr| {
@@ -79,9 +87,9 @@ impl StreamHandler<UdpPacket> for UdpActor {
         match rmsg.0 {
             HeartBeat::Ping(_id, _ts) => self
                 .sink
-                .write((HeartBeat::Pong(self.me, now()), rmsg.1))
+                .write((HeartBeat::Pong(self.me, phi::now()), rmsg.1))
                 .unwrap(),
-            HeartBeat::Pong(id, _ts) => self.inventory.do_send(HeartBeat::Pong(id, now())),
+            HeartBeat::Pong(id, _ts) => self.inventory.do_send(HeartBeat::Pong(id, phi::now())),
             _ => println!("Received non match: ({:?}, {:?})", rmsg.0, rmsg.1),
         };
     }
@@ -122,25 +130,17 @@ impl HeartBeatActor {
             name,
             pinger,
             address: address.clone(),
-            socket_address: address
-                .parse::<SocketAddr>()
-                .expect("Invalid forwarding address specified"),
+            socket_address: address.as_str().to_socket_addrs().expect("Invalid forwarding address specified").next().unwrap(),
         }
     }
 
     fn heartbeat(&self, ctx: &mut Context<Self>) {
         ctx.run_interval(Duration::from_millis(150), |actor, _ctx| {
-            actor
-                .pinger
-                .do_send(HeartBeat::DoPing(actor.id, now(), actor.socket_address));
+            actor.pinger.do_send(HeartBeat::DoPing(
+                actor.id,
+                phi::now(),
+                actor.socket_address,
+            ));
         });
     }
-}
-
-fn now() -> u128 {
-    let start = SystemTime::now();
-    let since_the_epoch = start
-        .duration_since(UNIX_EPOCH)
-        .expect("Time went backwards");
-    since_the_epoch.as_millis()
 }

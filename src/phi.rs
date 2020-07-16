@@ -1,5 +1,8 @@
-use std::collections::VecDeque;
 use serde_derive::{Deserialize, Serialize};
+use std::{
+    collections::VecDeque,
+    time::{SystemTime, UNIX_EPOCH},
+};
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub enum State {
@@ -50,7 +53,7 @@ impl HeartbeatHistory {
     }
 
     fn history(&self, num: usize) -> std::vec::Vec<u128> {
-        self.intervals.iter().cloned().take(num).collect::<Vec<_>>()
+        self.intervals.iter().rev().cloned().take(num).collect::<Vec<_>>()
     }
 }
 
@@ -146,16 +149,24 @@ impl PhiAccrualFailureDetector {
         }
     }
 
-    pub fn is_available(&self, timestamp: u128) -> bool {
-        self.phi(timestamp) < self.threshold
+    fn is_alive(&self, phi: f64) -> bool {
+        return phi != 0.0 && phi < self.threshold;
     }
 
     pub fn state(&self, timestamp: u128) -> State {
         let phi = self.phi(timestamp);
-        if phi < self.threshold {
+        if self.is_alive(phi) {
             return State::Alive(phi);
         }
         State::Dead(phi)
+    }
+
+    pub fn is_available(&self, timestamp: u128) -> bool {
+        let st = self.state(timestamp);
+        match st {
+            State::Alive(_) => true,
+            State::Dead(_) => false,
+        }
     }
 
     pub fn phi(&self, timestamp: u128) -> f64 {
@@ -201,6 +212,14 @@ impl PhiAccrualFailureDetector {
     }
 }
 
+pub fn now() -> u128 {
+    let start = SystemTime::now();
+    let since_the_epoch = start
+        .duration_since(UNIX_EPOCH)
+        .expect("Time went backwards");
+    since_the_epoch.as_millis()
+}
+
 #[cfg(test)]
 mod tests {
     use super::PhiAccrualFailureDetectorBuilder;
@@ -208,7 +227,7 @@ mod tests {
     #[test]
     fn should_fail_when_no_heartbeats() {
         let mut detector = PhiAccrualFailureDetectorBuilder::new().build();
-        let now = 1420070400000u128;
+        let now = super::now();
 
         for t in 0..100 {
             let tm = now + t * 1000;
@@ -235,7 +254,7 @@ mod tests {
     #[test]
     fn should_recover() {
         let mut detector = PhiAccrualFailureDetectorBuilder::new().build();
-        let now = 1420070400000u128;
+        let now = super::now();
 
         for t in 0..10 {
             let tm = now + t * 1000;
@@ -257,7 +276,7 @@ mod tests {
     #[test]
     fn test_phi_fd() {
         let mut detector = PhiAccrualFailureDetectorBuilder::new().build();
-        let now = 1420070400000u128;
+        let now = super::now();
         for i in 0..300 {
             let timestamp = now + i * 1000;
 
@@ -301,5 +320,20 @@ mod tests {
             assert!(detector.phi(timestamp) < 0.1);
             assert!(detector.is_available(timestamp));
         }
+    }
+
+    #[test]
+    fn history_order() {
+        let mut detector = PhiAccrualFailureDetectorBuilder::new().build();
+        let now = super::now();
+        let actual = vec![90, 110, 625, 375];
+
+        for t in &[120, 230, 320] {
+            let tm = now + t;
+            detector.heartbeat(tm);
+            assert!(detector.is_available(tm));
+        }
+        let hist = detector.history(5);
+        assert_eq!(hist, actual);
     }
 }

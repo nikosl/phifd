@@ -1,12 +1,12 @@
 use actix::prelude::*;
-use std::collections::HashMap;
+use std::{time::Duration, collections::HashMap};
 use uuid::Uuid;
 
 use crate::{
-    messages::{HeartBeat, Monitor, PeerStatus, Status},
-    peer::Peer,
-    phi::{PhiAccrualFailureDetector, PhiAccrualFailureDetectorBuilder, State},
+    messages::{HeartBeat, Monitor, PeerStatus, Status, StatusEvent, self},
+    phi::{PhiAccrualFailureDetector, PhiAccrualFailureDetectorBuilder, State, self},
 };
+use super::monitor::MonitorActor;
 
 pub struct PeerMonitor {
     id: Uuid,
@@ -41,28 +41,75 @@ impl PeerMonitor {
     pub fn last(&self) -> u128 {
         self.status.last()
     }
+
+    pub fn history(&self, num: usize) -> std::vec::Vec<u128> {
+        self.status.history(num)
+    }
+}
+
+impl From<&PeerMonitor> for PeerStatus {
+    fn from(item: &PeerMonitor) -> Self {
+        let st = item.state(phi::now());
+        let phi  = match st {
+            phi::State::Alive(p) => p,
+            phi::State::Dead(p) => p,
+        };
+        PeerStatus {
+            id: item.id.clone(),
+            name: item.name.clone(),
+            address: item.address.clone(),
+            history: item.history(20),
+            phi: phi,
+            state: st,
+            last: item.last(),
+        }
+    }
 }
 
 pub struct InventoryActor {
     my_id: Uuid,
-    my_addr: String,
     inv: HashMap<Uuid, PeerMonitor>,
     fd: PhiAccrualFailureDetectorBuilder,
+    subs: bool,
+    monit: Option<Addr<MonitorActor>>
 }
 
 impl InventoryActor {
-    pub fn new(my_id: Uuid, my_addr: String) -> Self {
+    pub fn new(my_id: Uuid) -> Self {
         InventoryActor {
             my_id,
-            my_addr,
             inv: HashMap::new(),
             fd: PhiAccrualFailureDetectorBuilder::new(),
+            subs: false,
+            monit: None,
         }
+    }
+
+    fn get_status(&self)-> Status {
+        let mut st = messages::Status(std::collections::HashMap::new());
+        for (id, peer) in  self.inv.iter(){
+            st.0.insert(id.clone(), PeerStatus::from(peer));
+        }
+        st
+    }
+
+    fn push_status(&self, ctx: &mut Context<Self>) {
+        ctx.run_interval(Duration::new(1, 0), |actor, _ctx| {
+            if actor.subs {
+                if let Some(addr) = &actor.monit {
+                    addr.do_send(actor.get_status());
+                }
+            }
+        });
     }
 }
 
 impl Actor for InventoryActor {
     type Context = Context<Self>;
+  
+    fn started(&mut self, ctx: &mut Self::Context) {
+        self.push_status(ctx);
+    }
 }
 
 impl Handler<Monitor> for InventoryActor {
@@ -90,5 +137,19 @@ impl Handler<HeartBeat> for InventoryActor {
                 p.status.heartbeat(ts);
             }
         }
+    }
+}
+
+impl Handler<StatusEvent> for InventoryActor {
+    type Result = ();
+
+    fn handle(&mut self, msg: StatusEvent, _ctx: &mut Context<Self>) {
+        match msg {
+            StatusEvent::Subscribe(addr) => {
+                self.monit = Some(addr);
+                self.subs = true;
+            }
+            StatusEvent::UnSubscribe => {}
+        };
     }
 }
