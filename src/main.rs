@@ -79,7 +79,7 @@ async fn main() -> std::io::Result<()> {
             // redirect to websocket.html
             .service(web::resource("/").route(web::get().to(|| {
                 HttpResponse::Found()
-                    .header("LOCATION", "/static/websocket.html")
+                    .header("LOCATION", "/static/index.html")
                     .finish()
             })))
             // websocket

@@ -11,18 +11,13 @@ requirements:
 * [docker](https://docs.docker.com/engine/)
 * [docker-compose](https://docs.docker.com/compose/)
 * [jq](https://stedolan.github.io/jq/)
-* (optional) [websocat](https://github.com/vi/websocat)
+
+Run :
 
 ``` bash
 make build
 make up
 make register
-websocat ws://localhost:8001/ws/ | jq '.' # or visit http://localhost:8001
+make show
+make test-pause
 ```
-
-### Todo
-
-* [ ] tests
-  * [ ] latency
-  * [ ] packet drops
-* [ ] charts

@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.0/css/bootstrap.min.css"
+        integrity="sha384-9aIt2nRpC12Uk9gS9baDl411NQApFmC26EwAOH8WgZl5MYYxFfc+NcPb1dKGj7Sk" crossorigin="anonymous">
+    <script src=https://cdnjs.cloudflare.com/ajax/libs/Chart.js/2.9.3/Chart.bundle.min.js></script>
+    <style type="text/css">
+        #canvas-holder {
+            margin-top: 20px;
+        }
+    </style>
+
+    <title>Health</title>
+</head>
+
+<body onload="javascript:init()">
+    <h1>Health</h1>
+    <div class="container" id="canvas-holder">
+        <div class="row">
+
+            <div class="col-md-6 mb-3">
+                <div class="card">
+                    <div class="card-body">
+                        <canvas id="phiChart" width="400" height="400"></canvas>
+                    </div>
+                </div>
+
+            </div>
+            <div class="col-md-6 ">
+                <div class="card">
+                    <div class="card-body">
+                        <canvas id="intervalsChart" width="400" height="400"></canvas>
+                    </div>
+
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+    <script>
+        var webSocket;
+        var phiPlot;
+        var intervalsPlot;
+        var chartColors = ["#3e95cd", "#8e5ea2", "#3cba9f", "#e8c3b9", "#c45850"];
+
+        function init() {
+            webSocket = new WebSocket('ws://' + window.location.host + '/ws/');
+            phiPlot = new Chart(document.getElementById('phiChart'),
+                {
+                    type: 'bar',
+                    data: {
+                        labels: [],
+                        datasets: []
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        title: {
+                            display: true,
+                            text: 'Phi'
+                        },
+                        scales: {
+                            yAxes: [{
+                                ticks: {
+                                    beginAtZero: true,
+                                    suggestedMax: 16
+                                }
+                            }]
+                        }
+                    }
+                }
+            );
+            intervalsPlot = new Chart(document.getElementById("intervalsChart"),
+                {
+                    type: 'line',
+                    data: {
+                        labels: [],
+                        datasets: []
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        title: {
+                            display: true,
+                            text: 'Intervals'
+                        },
+                        scales: {
+                            yAxes: [{
+                                ticks: {
+                                    beginAtZero: true
+                                }
+                            }],
+                            xAxes: [{
+                                ticks: {
+                                    maxTicksLimit: 15,
+                                },
+                            }]
+                        }
+                    }
+                }
+            );
+
+
+            webSocket.onmessage = function (event) {
+                var data = JSON.parse(event.data);
+                if (Array.isArray(data) && data.length) {
+                    data.sort(compare);
+                    addDataPhi(phiPlot, data);
+                    addDataIntervals(intervalsPlot, data);
+                }
+            };
+
+
+        };
+
+        function compare(a, b) {
+            if (a.name < b.name) {
+                return -1;
+            }
+            if (a.name > b.name) {
+                return 1;
+            }
+            return 0;
+        }
+
+        function addDataPhi(plot, state) {
+            plot.data.labels = state.map(s => s.name);
+            if (plot.data.datasets.length == 0) {
+                var d = {
+                    data: [],
+                    label: "Phi",
+                    backgroundColor: chartColors,
+                    borderColor: "rgb(255, 99, 132)",
+                }
+                plot.data.datasets.push(d);
+            }
+            plot.data.datasets[0].data = state.map(s => s.phi)
+            plot.update();
+        };
+
+        function peerIndex(name, list) {
+            var i;
+            for (i = 0; i < list.length; i++) {
+                if (list[i].label === name) {
+                    return i;
+                }
+            }
+            return -1;
+        }
+
+        function addDataIntervals(plot, state) {
+            var today = new Date();
+            var label = today.getHours() + ":" + today.getMinutes() + ":" + today.getSeconds();
+            var maxElem = 15;
+
+            if (plot.data.labels.length >= maxElem) {
+                plot.data.labels.shift();
+            }
+
+            plot.data.labels.push(label);
+            for (var i in state) {
+                var idx = peerIndex(state[i].name, plot.data.datasets)
+                if (idx >= 0) {
+                    if (plot.data.datasets[idx].data.length >= maxElem) {
+                        plot.data.datasets[idx].data.shift();
+                    }
+                    plot.data.datasets[idx].data.push(state[i].history[0]);
+                    plot.data.datasets[idx].label = state[i].name;
+                } else {
+                    var color = chartColors.length - 1 >= i ? chartColors[i] : getRandomColor();
+                    var d = {
+                        data: [state[i].history[0]],
+                        label: state[i].name,
+                        borderColor: color,
+                        fill: false
+                    }
+                    plot.data.datasets.push(d);
+                }
+            }
+
+            plot.update();
+        };
+
+        function getRandomColor() {
+            var letters = '0123456789ABCDEF';
+            var color = '#';
+            for (var i = 0; i < 6; i++) {
+                color += letters[Math.floor(Math.random() * 16)];
+            }
+            return color;
+        }
+
+    </script>
+    <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"
+        integrity="sha384-DfXdz2htPH0lsSSs5nCTpuj/zy4C+OGpamoFVy38MVBnE+IbbVYUew+OrCXaRkfj"
+        crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/popper.js@1.16.0/dist/umd/popper.min.js"
+        integrity="sha384-Q6E9RHvbIyZFJoft+2mJbHaEWldlvI9IOYy5n3zV9zzTtmI3UksdQRVvoxMfooAo"
+        crossorigin="anonymous"></script>
+    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.0/js/bootstrap.min.js"
+        integrity="sha384-OgVRvuATP1z7JjHLkuOU7Xw704+h835Lr+6QL9UvYjZE3Ipu6Tp75j7Bh/kR0JKI"
+        crossorigin="anonymous"></script>
+</body>
+
+</html>

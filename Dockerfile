@@ -19,7 +19,7 @@ RUN set -x\
 
 FROM gcr.io/distroless/cc-debian10
 
-COPY ./static/websocket.html /opt/phifd/static/
+COPY ./static/index.html /opt/phifd/static/
 COPY --from=phi-build /usr/src/phifd/target/release/phifd /opt/phifd/phifd
 
 WORKDIR /opt/phifd/

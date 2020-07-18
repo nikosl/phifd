@@ -41,7 +41,7 @@ pub struct PeerStatus {
 
 #[derive(Debug, Clone, Serialize, Deserialize, Message)]
 #[rtype(result = "()")]
-pub struct Status(pub std::collections::HashMap<Uuid, PeerStatus>);
+pub struct Status(pub std::vec::Vec<PeerStatus>);
 
 #[derive(Debug, Clone, Serialize, Deserialize, Message)]
 #[rtype(result = "()")]

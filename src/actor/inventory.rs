@@ -1,12 +1,12 @@
 use actix::prelude::*;
-use std::{time::Duration, collections::HashMap};
+use std::{collections::HashMap, time::Duration};
 use uuid::Uuid;
 
-use crate::{
-    messages::{HeartBeat, Monitor, PeerStatus, Status, StatusEvent, self},
-    phi::{PhiAccrualFailureDetector, PhiAccrualFailureDetectorBuilder, State, self},
-};
 use super::monitor::MonitorActor;
+use crate::{
+    messages::{self, HeartBeat, Monitor, PeerStatus, Status, StatusEvent},
+    phi::{self, PhiAccrualFailureDetector, PhiAccrualFailureDetectorBuilder, State},
+};
 
 pub struct PeerMonitor {
     id: Uuid,
@@ -50,7 +50,7 @@ impl PeerMonitor {
 impl From<&PeerMonitor> for PeerStatus {
     fn from(item: &PeerMonitor) -> Self {
         let st = item.state(phi::now());
-        let phi  = match st {
+        let phi = match st {
             phi::State::Alive(p) => p,
             phi::State::Dead(p) => p,
         };
@@ -71,7 +71,7 @@ pub struct InventoryActor {
     inv: HashMap<Uuid, PeerMonitor>,
     fd: PhiAccrualFailureDetectorBuilder,
     subs: bool,
-    monit: Option<Addr<MonitorActor>>
+    monit: Option<Addr<MonitorActor>>,
 }
 
 impl InventoryActor {
@@ -85,12 +85,13 @@ impl InventoryActor {
         }
     }
 
-    fn get_status(&self)-> Status {
-        let mut st = messages::Status(std::collections::HashMap::new());
-        for (id, peer) in  self.inv.iter(){
-            st.0.insert(id.clone(), PeerStatus::from(peer));
-        }
-        st
+    fn get_status(&self) -> Status {
+        messages::Status(
+            self.inv
+                .iter()
+                .map(|(_id, peer)| PeerStatus::from(peer))
+                .collect(),
+        )
     }
 
     fn push_status(&self, ctx: &mut Context<Self>) {
@@ -106,7 +107,7 @@ impl InventoryActor {
 
 impl Actor for InventoryActor {
     type Context = Context<Self>;
-  
+
     fn started(&mut self, ctx: &mut Self::Context) {
         self.push_status(ctx);
     }

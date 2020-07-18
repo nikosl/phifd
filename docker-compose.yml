@@ -5,21 +5,39 @@ services:
     build: .
     image: phifd:latest
     hostname: peer0
-    environment: 
-      PHI_ME: peer0:peer0:9000
+    environment:
+      PHI_ME: 78441273-5550-4733-9d37-1c0319a21053/peer0/peer0:9000
       PHI_REST: 0.0.0.0:8000
     ports:
       - "9000:9000"
       - "8000:8000"
 
   peer1:
-    build: .
     image: phifd:latest
     hostname: peer1
-    environment: 
-      PHI_ME: peer1:peer1:9001
+    environment:
+      PHI_ME: b7822b9d-a32b-4525-9af6-45216cd96d40/peer1/peer1:9001
       PHI_REST: 0.0.0.0:8001
     ports:
       - "9001:9001"
       - "8001:8001"
-  
+
+  peer2:
+    image: phifd:latest
+    hostname: peer2
+    environment:
+      PHI_ME: bffcaacb-df8d-43b8-b693-445a031ac215/peer2/peer2:9002
+      PHI_REST: 0.0.0.0:8002
+    ports:
+      - "9002:9002"
+      - "8002:8002"
+
+  peer3:
+    image: phifd:latest
+    hostname: peer3
+    environment:
+      PHI_ME: 1bba427b-1479-4703-a8e6-42676ae76ebe/peer3/peer3:9003
+      PHI_REST: 0.0.0.0:8003
+    ports:
+      - "9003:9003"
+      - "8003:8003"
